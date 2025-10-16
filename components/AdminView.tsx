@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { Room, Booking, BookingStatus, AdminUser } from '../types';
-import { PlusIcon, TrashIcon, CheckIcon, XIcon, UserIcon, LockIcon, PencilIcon, CloseIcon } from './Icons';
+import { Room, Booking, BookingStatus, AdminUser, RoomStatus } from '../types';
+import { PlusIcon, TrashIcon, CheckIcon, XIcon, UserIcon, LockIcon, PencilIcon, CloseIcon, WrenchIcon, PlayIcon } from './Icons';
 import { GoogleGenAI } from '@google/genai';
 
 // --- Components ---
@@ -11,7 +10,9 @@ interface AdminViewProps {
   bookings: Booking[];
   addRoom: (roomName: string) => void;
   deleteRoom: (roomId: string) => void;
+  updateRoomStatus: (roomId: string, status: RoomStatus) => void;
   updateBookingStatus: (bookingId: string, status: BookingStatus, rejectionReason?: string) => void;
+  deleteBooking: (bookingId: string) => void;
   admins: AdminUser[];
   addAdmin: (username: string, password: string) => void;
   updateAdmin: (adminId: string, newUsername: string, newPassword?: string) => void;
@@ -224,7 +225,7 @@ const EditAdminModal: React.FC<{
 
 // --- Main View ---
 
-const AdminView: React.FC<AdminViewProps> = ({ rooms, bookings, addRoom, deleteRoom, updateBookingStatus, admins, addAdmin, updateAdmin }) => {
+const AdminView: React.FC<AdminViewProps> = ({ rooms, bookings, addRoom, deleteRoom, updateRoomStatus, updateBookingStatus, deleteBooking, admins, addAdmin, updateAdmin }) => {
   const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null);
 
   const pendingBookings = bookings.filter(b => b.status === BookingStatus.Pending);
@@ -237,22 +238,45 @@ const AdminView: React.FC<AdminViewProps> = ({ rooms, bookings, addRoom, deleteR
             return;
         }
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        const bookingDate = new Date(booking.date + 'T00:00:00').toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+        const roomName = roomMap.get(booking.roomId);
 
-        const statusText = status === 'Approved' ? 'تمت الموافقة على' : 'تم رفض';
-        const reasonText = status === 'Rejected' && reason ? `والسبب هو: "${reason}"` : '';
+        let prompt;
 
-        const prompt = `
-            أنت مساعد إداري في جامعة. اكتب بريدًا إلكترونيًا احترافيًا وودودًا باللغة العربية.
-            موضوع البريد: تحديث بخصوص طلب حجز قاعة الأنشطة الطلابية
-            
+        if (status === 'Approved') {
+          // Dedicated prompt for approval as requested by the user
+          prompt = `
+            أنت مساعد إداري في جامعة، ومهمتك هي كتابة بريد إلكتروني احترافي ومفصل لتأكيد حجز قاعة بنجاح.
+            البريد يجب أن يكون باللغة العربية، ودودًا وواضحًا.
+
+            موضوع البريد: تمت الموافقة على طلب حجز قاعة: ${booking.activityName}
+
             محتوى البريد:
-            - ابدأ بتحية الطالب/الطالبة: "عزيزي/عزيزتي ${booking.requesterName}،"
-            - أبلغه بأنه ${statusText} طلبه لحجز قاعة "${roomMap.get(booking.roomId)}" للقيام بنشاط "${booking.activityName}" بتاريخ ${new Date(booking.date + 'T00:00:00').toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}.
-            - ${reasonText}
-            - إذا تمت الموافقة، أضف جملة مثل "يرجى الالتزام بقواعد استخدام القاعة والمحافظة على نظافتها."
-            - إذا تم الرفض، أضف جملة مثل "نتمنى لك حظًا أوفر في المرات القادمة."
-            - اختم البريد بـ "مع تحيات، إدارة شؤون الطلاب."
-        `;
+            1.  ابدأ بتحية شخصية للمستخدم: "عزيزي/عزيزتي ${booking.requesterName}،"
+            2.  أبلغه بالخبر السار مباشرة، وهو أنه تمت الموافقة على طلبه لحجز قاعة.
+            3.  اعرض تفاصيل الحجز المؤكدة التالية في قائمة منظمة وواضحة:
+                - **القاعة:** ${roomName}
+                - **النشاط:** ${booking.activityName}
+                - **التاريخ:** ${bookingDate}
+            4.  أضف هذه الملاحظة الهامة في النهاية: "يرجى الالتزام بقواعد استخدام القاعة والمحافظة على نظافتها وتسليمها بنفس الحالة التي تم استلامها بها."
+            5.  اختم البريد بشكل رسمي ومهني: "مع تحيات، إدارة شؤون الطلاب."
+          `;
+        } else { // Rejected
+          prompt = `
+            أنت مساعد إداري في جامعة، ومهمتك هي كتابة بريد إلكتروني احترافي ولطيف لإعلام مستخدم برفض طلب حجز قاعة.
+            البريد يجب أن يكون باللغة العربية.
+
+            موضوع البريد: تحديث بخصوص طلب حجز قاعة: ${booking.activityName}
+
+            محتوى البريد:
+            1. ابدأ بتحية شخصية للمستخدم: "عزيزي/عزيزتي ${booking.requesterName}،"
+            2. أبلغه بالرفض بلطف، موضحًا أن الطلب الخاص بنشاط "${booking.activityName}" قد تم رفضه.
+            3. اذكر سبب الرفض بوضوح: "السبب: ${reason}"
+            4. أضف جملة لطيفة مثل: "نتمنى لك حظًا أوفر في المرات القادمة."
+            5. اختم البريد بشكل رسمي: "مع تحيات، إدارة شؤون الطلاب."
+          `;
+        }
 
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
@@ -262,7 +286,6 @@ const AdminView: React.FC<AdminViewProps> = ({ rooms, bookings, addRoom, deleteR
         const emailContent = response.text;
         console.log(`--- Simulation: Email sent to ${booking.email} ---\n${emailContent}`);
         // In a real app, you would use an email service here.
-        // alert(`--- محاكاة إرسال بريد إلكتروني ---\n\nإلى: ${booking.email}\n\nالمحتوى:\n${emailContent}`);
 
       } catch (error) {
           console.error("Error generating email:", error);
@@ -280,12 +303,11 @@ const AdminView: React.FC<AdminViewProps> = ({ rooms, bookings, addRoom, deleteR
   };
   
   const handleReject = (booking: Booking, reason: string) => {
-    // Send notification first, then update status to Rejected.
+    // Send notification first, then delete.
     generateAndNotify(booking, 'Rejected', reason).catch(err => {
         console.error("Failed to send rejection notification for booking:", booking.id, err);
     });
-    // Update status instead of deleting the booking record
-    updateBookingStatus(booking.id, BookingStatus.Rejected, reason);
+    deleteBooking(booking.id);
   };
 
   return (
@@ -324,18 +346,40 @@ const AdminView: React.FC<AdminViewProps> = ({ rooms, bookings, addRoom, deleteR
                 <ul className="divide-y divide-gray-200">
                   {rooms.map(room => (
                     <li key={room.id} className="flex items-center justify-between py-4">
-                      <span className="text-gray-800">{room.name}</span>
-                      <button
-                        onClick={() => {
-                           if (window.confirm(`هل أنت متأكد من حذف قاعة "${room.name}"؟ سيتم حذف جميع الحجوزات المرتبطة بها.`)) {
-                             deleteRoom(room.id);
-                           }
-                        }}
-                        className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-100 transition-colors duration-200"
-                        aria-label={`حذف ${room.name}`}
-                      >
-                        <TrashIcon />
-                      </button>
+                      <div className="flex items-center">
+                          <span className="text-gray-800">{room.name}</span>
+                          {room.status === RoomStatus.UnderMaintenance && (
+                            <span className="text-xs font-semibold mr-2 px-2.5 py-0.5 rounded bg-orange-200 text-orange-800">تحت الصيانة</span>
+                          )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                          {room.status === RoomStatus.Available ? (
+                              <button
+                                  onClick={() => updateRoomStatus(room.id, RoomStatus.UnderMaintenance)}
+                                  className="text-orange-500 hover:text-orange-700 p-2 rounded-full hover:bg-orange-100 transition-colors duration-200"
+                                  aria-label={`وضع ${room.name} تحت الصيانة`}
+                                  title="وضع تحت الصيانة"
+                              >
+                                  <WrenchIcon />
+                              </button>
+                          ) : (
+                              <button
+                                  onClick={() => updateRoomStatus(room.id, RoomStatus.Available)}
+                                  className="text-green-500 hover:text-green-700 p-2 rounded-full hover:bg-green-100 transition-colors duration-200"
+                                  aria-label={`إعادة تفعيل ${room.name}`}
+                                  title="إعادة تفعيل"
+                              >
+                                  <PlayIcon />
+                              </button>
+                          )}
+                          <button
+                            onClick={() => deleteRoom(room.id)}
+                            className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-100 transition-colors duration-200"
+                            aria-label={`حذف ${room.name}`}
+                          >
+                            <TrashIcon />
+                          </button>
+                      </div>
                     </li>
                   ))}
                 </ul>

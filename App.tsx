@@ -1,6 +1,5 @@
-
 import React, { useState, useCallback } from 'react';
-import { UserRole, Room, Booking, BookingStatus, BookingRequest, AdminUser } from './types';
+import { UserRole, Room, Booking, BookingStatus, BookingRequest, AdminUser, RoomStatus } from './types';
 import Header from './components/Header';
 import AdminView from './components/AdminView';
 import ClubPresidentView from './components/ClubPresidentView';
@@ -9,10 +8,10 @@ import LoginView from './components/LoginView';
 const App: React.FC = () => {
   const [userRole, setUserRole] = useState<UserRole>(UserRole.ClubPresident);
   const [rooms, setRooms] = useState<Room[]>([
-    { id: '1', name: 'قاعة الاجتماعات الرئيسية' },
-    { id: '2', name: 'المسرح الطلابي' },
-    { id: '3', name: 'قاعة الأنشطة الرياضية' },
-    { id: '4', name: 'معمل الحاسب الآلي' },
+    { id: '1', name: 'قاعة الاجتماعات الرئيسية', status: RoomStatus.Available },
+    { id: '2', name: 'المسرح الطلابي', status: RoomStatus.Available },
+    { id: '3', name: 'قاعة الأنشطة الرياضية', status: RoomStatus.Available },
+    { id: '4', name: 'معمل الحاسب الآلي', status: RoomStatus.Available },
   ]);
   const [bookings, setBookings] = useState<Booking[]>([
     { 
@@ -124,6 +123,7 @@ const App: React.FC = () => {
     const newRoom: Room = {
       id: `r${Date.now()}`,
       name: roomName,
+      status: RoomStatus.Available,
     };
     setRooms(prevRooms => [...prevRooms, newRoom]);
   }, []);
@@ -131,6 +131,14 @@ const App: React.FC = () => {
   const deleteRoom = useCallback((roomId: string) => {
     setRooms(prevRooms => prevRooms.filter(room => room.id !== roomId));
     setBookings(prevBookings => prevBookings.filter(booking => booking.roomId !== roomId));
+  }, []);
+
+  const updateRoomStatus = useCallback((roomId: string, status: RoomStatus) => {
+    setRooms(prevRooms =>
+        prevRooms.map(room =>
+            room.id === roomId ? { ...room, status } : room
+        )
+    );
   }, []);
 
   const addBooking = useCallback((bookingDetails: BookingRequest) => {
@@ -173,8 +181,10 @@ const App: React.FC = () => {
               rooms={rooms} 
               addRoom={addRoom} 
               deleteRoom={deleteRoom} 
+              updateRoomStatus={updateRoomStatus}
               bookings={bookings}
               updateBookingStatus={updateBookingStatus}
+              deleteBooking={deleteBooking}
               admins={admins}
               addAdmin={addAdmin}
               updateAdmin={updateAdmin}

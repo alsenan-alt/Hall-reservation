@@ -9,9 +9,15 @@ export enum BookingStatus {
   Rejected = 'Rejected',
 }
 
+export enum RoomStatus {
+  Available = 'Available',
+  UnderMaintenance = 'UnderMaintenance',
+}
+
 export interface Room {
   id: string;
   name: string;
+  status: RoomStatus;
 }
 
 export interface Booking {

@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Room, Booking, CalendarSlot, BookingStatus, BookingRequest } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Room, Booking, CalendarSlot, BookingStatus, BookingRequest, RoomStatus } from '../types';
 import BookingModal from './BookingModal';
 import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
 
@@ -52,129 +52,109 @@ const ClubPresidentView: React.FC<ClubPresidentViewProps> = ({ rooms, bookings, 
         newDate.setMonth(newDate.getMonth() + offset);
         return newDate;
     });
-  };
+  }
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
-  useEffect(() => {
-    const firstOfView = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const firstOfToday = new Date(today.getFullYear(), today.getMonth(), 1);
-    if (firstOfView < firstOfToday) {
-      setCurrentMonth(new Date());
-    }
-  }, [currentMonth, today]);
-  
-  const canGoBack = useMemo(() => {
-    const firstOfView = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const firstOfToday = new Date(today.getFullYear(), today.getMonth(), 1);
-    return firstOfView > firstOfToday;
-  }, [currentMonth, today]);
-
-  const daysArray = useMemo(() => {
-    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
-    const allDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-    const isCurrentDisplayMonth = currentMonth.getFullYear() === today.getFullYear() && currentMonth.getMonth() === today.getMonth();
-    
-    if (isCurrentDisplayMonth) {
-        return allDays.filter(day => day >= today.getDate());
-    }
-    return allDays;
-  }, [currentMonth, today]);
-
+  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-md">
-         <button
-            onClick={() => changeMonth(-1)}
-            disabled={!canGoBack}
-            className="p-2 rounded-full hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="الشهر السابق"
-          >
+         <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-200 transition">
             <ChevronRightIcon />
          </button>
          <h2 className="text-xl font-bold text-gray-700">
            {currentMonth.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
          </h2>
-         <button 
-            onClick={() => changeMonth(1)} 
-            className="p-2 rounded-full hover:bg-gray-200 transition"
-            aria-label="الشهر التالي"
-          >
+         <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-200 transition">
             <ChevronLeftIcon />
          </button>
       </div>
 
       <div className="overflow-x-auto bg-white rounded-xl shadow-lg">
-        {daysArray.length > 0 ? (
-            <table className="w-full border-collapse min-w-[1200px] lg:min-w-full">
-               <thead>
-                 <tr className="bg-gray-50">
-                   <th className="p-3 text-right font-semibold text-gray-700 border sticky right-0 bg-gray-100 z-10 w-[150px] md:w-[200px]">القاعة</th>
-                   {daysArray.map(dayNum => {
-                       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayNum);
-                       return (
-                         <th key={dayNum} className="p-2 text-center font-medium border w-28 md:w-32 text-gray-600">
-                           <span className="text-sm">{date.toLocaleDateString('ar-EG', { weekday: 'short'})}</span>
-                           <br/>
-                           {dayNum}
-                         </th>
-                       )
-                   })}
-                 </tr>
-               </thead>
-               <tbody>
-                 {rooms.map(room => (
-                   <tr key={room.id} className="border-t">
-                     <td className="p-3 font-semibold border-l border-b sticky right-0 bg-white z-[5]">{room.name}</td>
-                     {daysArray.map(dayNum => {
-                        const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayNum);
-                        const dateStr = date.toISOString().split('T')[0];
-                        const bookingInfo = bookedSlots.get(`${room.id}-${dateStr}`);
-                        
-                        const cellClasses = `p-1 border-r border-b text-center align-middle h-20`;
-
-                        if (bookingInfo) {
-                          const isPending = bookingInfo.status === BookingStatus.Pending;
-                          const bgColor = isPending ? 'bg-yellow-100' : 'bg-red-100';
-                          const textColor = isPending ? 'text-yellow-800' : 'text-red-800';
-                          const statusText = isPending ? 'قيد الانتظار' : 'محجوزة';
-
-                          return (
-                            <td key={dateStr} className={cellClasses}>
-                              <div className={`${bgColor} ${textColor} p-2 rounded-md h-full flex flex-col justify-center items-center text-sm font-bold`} title={statusText}>
-                                 <p>{statusText}</p>
+        <table className="w-full border-collapse min-w-[2000px]">
+           <thead>
+             <tr className="bg-gray-50">
+               <th className="p-3 text-right font-semibold text-gray-700 border sticky right-0 bg-gray-100 z-10 w-[200px]">القاعة</th>
+               {daysArray.map(dayNum => {
+                   const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayNum);
+                   const isPast = date < today;
+                   return (
+                     <th key={dayNum} className={`p-2 text-center font-medium border w-32 ${isPast ? 'text-gray-400' : 'text-gray-600'}`}>
+                       <span className="text-sm">{date.toLocaleDateString('ar-EG', { weekday: 'short'})}</span>
+                       <br/>
+                       {dayNum}
+                     </th>
+                   )
+               })}
+             </tr>
+           </thead>
+           <tbody>
+             {rooms.map(room => (
+               <tr key={room.id} className="border-t">
+                 <td className="p-3 font-semibold border-l border-b sticky right-0 bg-white z-[5]">{room.name}</td>
+                 {daysArray.map(dayNum => {
+                    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayNum);
+                    const isPastDate = date < today;
+                    const dateStr = date.toISOString().split('T')[0];
+                    const bookingInfo = bookedSlots.get(`${room.id}-${dateStr}`);
+                    
+                    const cellClasses = `p-1 border-r border-b text-center align-middle h-20`;
+                    
+                    if (room.status === RoomStatus.UnderMaintenance) {
+                      return (
+                          <td key={dateStr} className={`${cellClasses} bg-gray-100`}>
+                              <div className="h-full flex items-center justify-center p-1 text-orange-700 text-sm font-semibold bg-orange-50 rounded-md">
+                                 تحت الصيانة
                               </div>
-                            </td>
-                          );
-                        }
-                        
-                        return (
-                          <td key={dateStr} className={cellClasses}>
-                            <div className="h-full flex items-center justify-center p-1">
-                              <button
-                                onClick={() => handleSlotClick(room, date)}
-                                className="bg-green-100 text-green-800 font-semibold px-4 py-2 rounded-md hover:bg-green-200 transition-colors text-sm w-full h-full"
-                              >
-                                طلب حجز
-                              </button>
-                            </div>
                           </td>
+                      );
+                    }
+
+                    if (bookingInfo) {
+                      const isPending = bookingInfo.status === BookingStatus.Pending;
+                      const bgColor = isPending ? 'bg-yellow-100' : 'bg-red-100';
+                      const textColor = isPending ? 'text-yellow-800' : 'text-red-800';
+                      const statusText = isPending ? 'قيد الانتظار' : 'محجوزة';
+
+                      return (
+                        <td key={dateStr} className={cellClasses}>
+                          <div className={`${bgColor} ${textColor} p-2 rounded-md h-full flex flex-col justify-center items-center text-sm font-bold`} title={statusText}>
+                             <p>{statusText}</p>
+                          </div>
+                        </td>
+                      );
+                    }
+                    
+                    if (isPastDate) {
+                        return (
+                            <td key={dateStr} className={`${cellClasses} bg-gray-50 cursor-not-allowed`}>
+                                <div className="h-full flex items-center justify-center p-1 text-gray-400 text-sm">
+                                    -
+                                </div>
+                            </td>
                         );
-                     })}
-                   </tr>
-                 ))}
-               </tbody>
-            </table>
-        ) : (
-            <div className="p-10 text-center text-gray-500">
-                لا توجد أيام متاحة للحجز في هذا الشهر.
-            </div>
-        )}
+                    }
+
+                    return (
+                      <td key={dateStr} className={cellClasses}>
+                        <div className="h-full flex items-center justify-center p-1">
+                          <button
+                            onClick={() => handleSlotClick(room, date)}
+                            className="bg-green-100 text-green-800 font-semibold px-4 py-2 rounded-md hover:bg-green-200 transition-colors text-sm w-full h-full"
+                          >
+                            طلب حجز
+                          </button>
+                        </div>
+                      </td>
+                    );
+                 })}
+               </tr>
+             ))}
+           </tbody>
+        </table>
       </div>
       
       {selectedSlot && (
